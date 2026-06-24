@@ -1,0 +1,26 @@
+# Node / frontend
+node_modules/
+dist/
+dist-ssr/
+*.local
+.vite/
+
+# Rust / Tauri
+src-tauri/target/
+**/target/
+
+# Env & secrets — never commit these
+.env
+.env.*
+*.pem
+
+# Local cache (market data cache lives here at runtime; not committed)
+cache/
+*.cache
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
