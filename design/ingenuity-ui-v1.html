@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>[ingenuity] — Tablet Mods</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:     #0b0c0b;
+    --bg2:    #0e100f;
+    --bg3:    #121413;
+    --bg4:    #161918;
+    --border: #1a1d1c;
+    --border2:#232726;
+    --dim:    #2a2e2c;
+    --mid:    #4a524e;
+    --sub:    #6a7570;
+    --text:   #b4c0ba;
+    --bright: #dce8e0;
+    --accent: #3dba8c;
+    --a2:     #2a9970;
+    --a3:     #1a6b4e;
+    --adim:   #0d2e20;
+    --up:     #3dba8c;
+    --down:   #ba3d5a;
+    --downdim:#2e0f17;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans', sans-serif;
+    overflow: hidden;
+  }
+
+  /* ── APP WRAPPER ── */
+  .app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    max-width: 1100px;
+    margin: 0 auto;
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+  }
+
+  /* ── TITLEBAR ── */
+  .titlebar {
+    background: var(--bg3);
+    border-bottom: 1px solid var(--border);
+    height: 38px;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 10px;
+    flex-shrink: 0;
+    user-select: none;
+  }
+  .tb-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+  .tb-logo { display: flex; align-items: baseline; }
+  .tb-logo .b { font-family: 'IBM Plex Mono', monospace; font-weight: 300; font-size: 13px; color: var(--accent); letter-spacing: -0.02em; }
+  .tb-logo .n { font-family: 'IBM Plex Mono', monospace; font-weight: 400; font-size: 13px; color: var(--text); }
+  .tb-sep { width: 1px; height: 16px; background: var(--border2); margin: 0 6px; }
+  .tb-context { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--mid); }
+  .tb-context em { font-style: normal; color: var(--sub); }
+  .tb-right { margin-left: auto; display: flex; align-items: center; gap: 14px; }
+  .tb-badge {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    color: var(--a2);
+    border: 1px solid var(--a3);
+    background: var(--adim);
+    padding: 2px 8px;
+    text-transform: uppercase;
+  }
+  .tb-time { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--dim); }
+
+  /* ── FILTERBAR ── */
+  .filterbar {
+    background: var(--bg3);
+    border-bottom: 1px solid var(--border);
+    height: 40px;
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .search-wrap {
+    position: relative;
+    flex: 1;
+    max-width: 280px;
+  }
+  .search-icon {
+    position: absolute;
+    left: 9px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--mid);
+    pointer-events: none;
+  }
+  .search-input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border2);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--text);
+    padding: 5px 10px 5px 26px;
+    outline: none;
+  }
+  .search-input:focus { border-color: var(--a3); }
+  .search-input::placeholder { color: var(--mid); }
+
+  .pill {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border: 1px solid var(--border2);
+    color: var(--mid);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.1s;
+    user-select: none;
+  }
+  .pill:hover { border-color: var(--mid); color: var(--sub); }
+  .pill.active { border-color: var(--a3); color: var(--accent); background: var(--adim); }
+
+  .fb-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .sort-label { font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: var(--dim); letter-spacing: 0.1em; }
+
+  /* ── MAIN BODY ── */
+  .body {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* ── LIST PANE ── */
+  .list-pane {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+    min-width: 300px;
+  }
+
+  .col-head {
+    display: grid;
+    grid-template-columns: 1fr 76px 52px 64px;
+    padding: 7px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg4);
+    flex-shrink: 0;
+    user-select: none;
+  }
+  .col-head span {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.14em;
+    color: var(--mid);
+    text-transform: uppercase;
+  }
+  .col-head span.sort-active { color: var(--accent); cursor: pointer; }
+
+  .mod-list {
+    overflow-y: auto;
+    flex: 1;
+  }
+  .mod-list::-webkit-scrollbar { width: 4px; }
+  .mod-list::-webkit-scrollbar-track { background: var(--bg2); }
+  .mod-list::-webkit-scrollbar-thumb { background: var(--dim); }
+
+  .mod-row {
+    display: grid;
+    grid-template-columns: 1fr 76px 52px 64px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    border-left: 2px solid transparent;
+    transition: background 0.08s;
+    user-select: none;
+  }
+  .mod-row:hover { background: var(--bg3); }
+  .mod-row.active {
+    background: #0c1812;
+    border-left-color: var(--accent);
+  }
+
+  .mod-name {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 12px;
+    color: var(--text);
+    line-height: 1.35;
+  }
+  .mod-name .val { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--accent); }
+
+  .price {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--bright);
+    white-space: nowrap;
+  }
+  .price .u { font-size: 9px; font-weight: 300; color: var(--sub); margin-left: 2px; }
+
+  .tier-badge {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.06em;
+    padding: 2px 6px;
+    border: 1px solid;
+    text-align: center;
+    width: fit-content;
+  }
+  .tier-S { border-color: var(--accent); color: var(--accent); }
+  .tier-A { border-color: var(--a2);     color: var(--a2); }
+  .tier-B { border-color: var(--mid);    color: var(--mid); }
+  .tier-C { border-color: var(--dim);    color: var(--dim); }
+
+  .trend {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    padding: 2px 5px;
+    white-space: nowrap;
+  }
+  .trend.up   { color: var(--up);   background: var(--adim); }
+  .trend.down { color: var(--down); background: var(--downdim); }
+  .trend.flat { color: var(--mid);  background: var(--dim); }
+
+  /* ── DRAG HANDLE ── */
+  .drag-handle {
+    width: 5px;
+    background: var(--border);
+    cursor: col-resize;
+    flex-shrink: 0;
+    position: relative;
+    transition: background 0.15s;
+  }
+  .drag-handle:hover,
+  .drag-handle.dragging { background: var(--a3); }
+  .drag-handle::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 1px;
+    height: 32px;
+    background: var(--border2);
+  }
+
+  /* ── DETAIL PANE ── */
+  .detail-pane {
+    display: flex;
+    flex-direction: column;
+    background: var(--bg3);
+    border-left: 1px solid var(--border);
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .detail-header {
+    border-bottom: 1px solid var(--border);
+    padding: 14px 18px;
+    flex-shrink: 0;
+  }
+  .detail-eyebrow {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.18em;
+    color: var(--mid);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .detail-mod-name {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--bright);
+    line-height: 1.35;
+  }
+  .detail-mod-name em { font-style: normal; color: var(--accent); }
+
+  .detail-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .detail-body::-webkit-scrollbar { width: 3px; }
+  .detail-body::-webkit-scrollbar-thumb { background: var(--dim); }
+
+  /* stat row */
+  .stat-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+  }
+  .stat-cell {
+    background: var(--bg2);
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .stat-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 8px;
+    letter-spacing: 0.18em;
+    color: var(--mid);
+    text-transform: uppercase;
+  }
+  .stat-val {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--bright);
+    line-height: 1;
+  }
+  .stat-val .u { font-size: 10px; font-weight: 300; color: var(--sub); margin-left: 2px; }
+  .stat-val.up   { color: var(--up); }
+  .stat-val.down { color: var(--down); }
+
+  /* chart */
+  .chart-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.16em;
+    color: var(--mid);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .chart-wrap {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    padding: 14px 14px 8px;
+  }
+  .chart-area {
+    position: relative;
+    height: 72px;
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+  }
+  .chart-bar {
+    flex: 1;
+    background: var(--a3);
+    border-radius: 1px 1px 0 0;
+    position: relative;
+    transition: background 0.1s;
+  }
+  .chart-bar.hi { background: var(--accent); }
+  .chart-bar.lo { background: var(--dim); }
+  .chart-bar:hover { background: var(--a2); }
+
+  .chart-x {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 6px;
+    padding: 0 1px;
+  }
+  .chart-x span {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 8px;
+    color: var(--dim);
+  }
+
+  /* listing count bar */
+  .listing-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.16em;
+    color: var(--mid);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .listing-bar-wrap {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .listing-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .listing-bar-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: var(--sub);
+    width: 28px;
+    flex-shrink: 0;
+  }
+  .listing-bar-track {
+    flex: 1;
+    height: 4px;
+    background: var(--dim);
+    position: relative;
+  }
+  .listing-bar-fill {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    background: var(--a3);
+  }
+  .listing-bar-fill.hi { background: var(--accent); }
+  .listing-bar-count {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: var(--mid);
+    width: 36px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  .detail-divider { height: 1px; background: var(--border); }
+
+  /* empty state */
+  .empty-detail {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 32px;
+  }
+  .empty-detail .e-mark {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 22px;
+    color: var(--dim);
+  }
+  .empty-detail .e-text {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    color: var(--dim);
+    text-transform: uppercase;
+    text-align: center;
+    line-height: 1.8;
+  }
+
+  /* ── STATUS BAR ── */
+  .statusbar {
+    background: var(--bg4);
+    border-top: 1px solid var(--border);
+    height: 26px;
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    gap: 20px;
+    flex-shrink: 0;
+  }
+  .status-item {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: var(--dim);
+    letter-spacing: 0.1em;
+  }
+  .status-item em { font-style: normal; color: var(--mid); }
+  .status-item.acc em { color: var(--accent); }
+
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+
+  <!-- TITLEBAR -->
+  <div class="titlebar">
+    <div class="tb-dot"></div>
+    <div class="tb-logo"><span class="b">[</span><span class="n">ingenuity</span><span class="b">]</span></div>
+    <div class="tb-sep"></div>
+    <div class="tb-context">tablets <em>/ runes of aldur</em></div>
+    <div class="tb-right">
+      <div class="tb-badge">live</div>
+      <div class="tb-time" id="clock">--:--:--</div>
+    </div>
+  </div>
+
+  <!-- FILTERBAR -->
+  <div class="filterbar">
+    <div class="search-wrap">
+      <span class="search-icon">⌕</span>
+      <input class="search-input" id="search" placeholder="search mods…" autocomplete="off" />
+    </div>
+    <div class="pill active" data-filter="all">all mods</div>
+    <div class="pill" data-filter="quantity">quantity</div>
+    <div class="pill" data-filter="rarity">rarity</div>
+    <div class="pill" data-filter="mechanic">mechanics</div>
+    <div class="pill" data-filter="monster">monsters</div>
+    <div class="fb-right">
+      <span class="sort-label">sort: price ↓</span>
+    </div>
+  </div>
+
+  <!-- BODY -->
+  <div class="body" id="body">
+
+    <!-- LIST PANE -->
+    <div class="list-pane" id="listPane">
+      <div class="col-head">
+        <span>Modifier</span>
+        <span class="sort-active">Price ↓</span>
+        <span>Tier</span>
+        <span>7d</span>
+      </div>
+      <div class="mod-list" id="modList"></div>
+    </div>
+
+    <!-- DRAG HANDLE -->
+    <div class="drag-handle" id="dragHandle"></div>
+
+    <!-- DETAIL PANE -->
+    <div class="detail-pane" id="detailPane" style="width: 300px;">
+      <div class="empty-detail" id="emptyDetail">
+        <div class="e-mark">[ ]</div>
+        <div class="e-text">select a mod<br/>to see its value</div>
+      </div>
+      <div id="detailContent" style="display:none; flex-direction:column; flex:1; overflow:hidden;">
+        <div class="detail-header">
+          <div class="detail-eyebrow">Selected Modifier</div>
+          <div class="detail-mod-name" id="detailName"></div>
+        </div>
+        <div class="detail-body">
+
+          <!-- stat grid -->
+          <div class="stat-grid">
+            <div class="stat-cell">
+              <div class="stat-label">Current Price</div>
+              <div class="stat-val" id="dPrice"></div>
+            </div>
+            <div class="stat-cell">
+              <div class="stat-label">7d Change</div>
+              <div class="stat-val" id="dTrend"></div>
+            </div>
+            <div class="stat-cell">
+              <div class="stat-label">Daily Volume</div>
+              <div class="stat-val" id="dVol"></div>
+            </div>
+            <div class="stat-cell">
+              <div class="stat-label">Tier Rank</div>
+              <div class="stat-val" id="dTier"></div>
+            </div>
+          </div>
+
+          <!-- price history -->
+          <div>
+            <div class="chart-label">7-Day Price History</div>
+            <div class="chart-wrap">
+              <div class="chart-area" id="dChart"></div>
+              <div class="chart-x">
+                <span>7d ago</span>
+                <span>6d</span>
+                <span>5d</span>
+                <span>4d</span>
+                <span>3d</span>
+                <span>2d</span>
+                <span>today</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- listing depth -->
+          <div>
+            <div class="listing-label">Listing Depth (price bands)</div>
+            <div class="listing-bar-wrap" id="dDepth"></div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- STATUSBAR -->
+  <div class="statusbar">
+    <div class="status-item acc">trade data <em>live</em></div>
+    <div class="status-item">league <em>runes of aldur</em></div>
+    <div class="status-item" id="statusCount">mods <em>—</em></div>
+    <div class="status-item" style="margin-left:auto;">[ingenuity] <em>v0.1.0</em></div>
+  </div>
+
+</div>
+
+<script>
+// ── DATA ──────────────────────────────────────────────
+const MODS = [
+  {
+    id: 1,
+    name: 'Monsters have <em>+45%</em> increased Pack Size',
+    nameText: 'Pack Size +45%',
+    category: 'quantity',
+    price: 12.4, priceUnit: 'div',
+    tier: 'S',
+    trendPct: 18, trendDir: 'up',
+    vol: 841,
+    history: [5.2, 6.8, 6.4, 8.1, 10.2, 11.8, 12.4],
+    depth: [{label:'10–12d', count:14}, {label:'12–14d', count:28}, {label:'14–16d', count:19}, {label:'16d+', count:8}]
+  },
+  {
+    id: 2,
+    name: 'Area contains an additional <em>Beyond</em> Portal',
+    nameText: 'Beyond Portal',
+    category: 'mechanic',
+    price: 9.1, priceUnit: 'div',
+    tier: 'S',
+    trendPct: -6, trendDir: 'down',
+    vol: 612,
+    history: [11.2, 10.8, 10.1, 9.8, 9.4, 9.2, 9.1],
+    depth: [{label:'8–9d', count:9}, {label:'9–10d', count:22}, {label:'10–11d', count:18}, {label:'11d+', count:5}]
+  },
+  {
+    id: 3,
+    name: 'Monsters have <em>+60%</em> increased Item Quantity',
+    nameText: 'Item Quantity +60%',
+    category: 'quantity',
+    price: 6.8, priceUnit: 'div',
+    tier: 'A',
+    trendPct: 32, trendDir: 'up',
+    vol: 1204,
+    history: [2.1, 2.8, 3.4, 4.2, 5.1, 6.0, 6.8],
+    depth: [{label:'6–7d', count:31}, {label:'7–8d', count:44}, {label:'8–9d', count:22}, {label:'9d+', count:11}]
+  },
+  {
+    id: 4,
+    name: 'Area contains a <em>Ritual</em>',
+    nameText: 'Ritual',
+    category: 'mechanic',
+    price: 3.2, priceUnit: 'div',
+    tier: 'A',
+    trendPct: -14, trendDir: 'down',
+    vol: 2841,
+    history: [4.8, 4.4, 4.0, 3.8, 3.5, 3.3, 3.2],
+    depth: [{label:'3–3.5d', count:52}, {label:'3.5–4d', count:38}, {label:'4–5d', count:14}, {label:'5d+', count:4}]
+  },
+  {
+    id: 5,
+    name: 'Unique Monsters drop <em>2</em> additional Rare items',
+    nameText: '+2 Rare drops (Unique)',
+    category: 'rarity',
+    price: 1.8, priceUnit: 'div',
+    tier: 'B',
+    trendPct: 0, trendDir: 'flat',
+    vol: 3102,
+    history: [1.8, 1.9, 1.8, 1.8, 1.7, 1.8, 1.8],
+    depth: [{label:'1.5–2d', count:88}, {label:'2–2.5d', count:41}, {label:'2.5–3d', count:12}, {label:'3d+', count:3}]
+  },
+  {
+    id: 6,
+    name: 'Monsters have <em>+30%</em> increased Monster Speed',
+    nameText: 'Monster Speed +30%',
+    category: 'monster',
+    price: 0.8, priceUnit: 'div',
+    tier: 'B',
+    trendPct: 5, trendDir: 'up',
+    vol: 4210,
+    history: [0.5, 0.6, 0.6, 0.7, 0.7, 0.8, 0.8],
+    depth: [{label:'0.5–0.8d', count:120}, {label:'0.8–1d', count:64}, {label:'1–1.5d', count:18}, {label:'1.5d+', count:5}]
+  },
+  {
+    id: 7,
+    name: 'Monsters have <em>+25%</em> increased Area of Effect',
+    nameText: 'Area of Effect +25%',
+    category: 'monster',
+    price: 0.4, priceUnit: 'div',
+    tier: 'C',
+    trendPct: -22, trendDir: 'down',
+    vol: 5841,
+    history: [0.8, 0.7, 0.6, 0.6, 0.5, 0.4, 0.4],
+    depth: [{label:'0.3–0.5d', count:201}, {label:'0.5–0.8d', count:88}, {label:'0.8–1d', count:22}, {label:'1d+', count:6}]
+  },
+  {
+    id: 8,
+    name: 'Rare Monsters have <em>2</em> additional Modifiers',
+    nameText: '+2 Rare Monster Mods',
+    category: 'rarity',
+    price: 0.2, priceUnit: 'div',
+    tier: 'C',
+    trendPct: 1, trendDir: 'flat',
+    vol: 6120,
+    history: [0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2],
+    depth: [{label:'0.1–0.2d', count:310}, {label:'0.2–0.3d', count:102}, {label:'0.3–0.5d', count:30}, {label:'0.5d+', count:8}]
+  },
+];
+
+// ── STATE ─────────────────────────────────────────────
+let selectedId = null;
+let activeFilter = 'all';
+let searchQuery = '';
+
+// ── RENDER LIST ───────────────────────────────────────
+function renderList() {
+  const list = document.getElementById('modList');
+  const filtered = MODS.filter(m => {
+    const matchFilter = activeFilter === 'all' || m.category === activeFilter;
+    const matchSearch = m.nameText.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchFilter && matchSearch;
+  });
+
+  document.getElementById('statusCount').innerHTML = `mods <em>${filtered.length}</em>`;
+
+  list.innerHTML = filtered.map(m => `
+    <div class="mod-row ${m.id === selectedId ? 'active' : ''}" data-id="${m.id}">
+      <div class="mod-name">${m.name}</div>
+      <div class="price">${m.price}<span class="u">${m.priceUnit}</span></div>
+      <div><span class="tier-badge tier-${m.tier}">${m.tier}</span></div>
+      <div><span class="trend ${m.trendDir}">${m.trendDir === 'up' ? '▲' : m.trendDir === 'down' ? '▼' : '→'} ${Math.abs(m.trendPct)}%</span></div>
+    </div>
+  `).join('');
+
+  list.querySelectorAll('.mod-row').forEach(row => {
+    row.addEventListener('click', () => selectMod(parseInt(row.dataset.id)));
+  });
+}
+
+// ── RENDER DETAIL ─────────────────────────────────────
+function selectMod(id) {
+  selectedId = id;
+  const m = MODS.find(x => x.id === id);
+
+  document.getElementById('emptyDetail').style.display = 'none';
+  const dc = document.getElementById('detailContent');
+  dc.style.display = 'flex';
+
+  document.getElementById('detailName').innerHTML = m.name;
+
+  // stats
+  document.getElementById('dPrice').innerHTML = `${m.price} <span class="u">${m.priceUnit}</span>`;
+  const trendEl = document.getElementById('dTrend');
+  trendEl.className = 'stat-val ' + m.trendDir;
+  trendEl.innerHTML = `${m.trendDir === 'up' ? '▲' : m.trendDir === 'down' ? '▼' : '→'} ${Math.abs(m.trendPct)}%`;
+  document.getElementById('dVol').innerHTML = `${m.vol.toLocaleString()} <span class="u">/day</span>`;
+  const tierEl = document.getElementById('dTier');
+  tierEl.innerHTML = m.tier;
+  tierEl.style.color = m.tier === 'S' ? 'var(--accent)' : m.tier === 'A' ? 'var(--a2)' : 'var(--sub)';
+
+  // chart
+  const max = Math.max(...m.history);
+  const min = Math.min(...m.history);
+  document.getElementById('dChart').innerHTML = m.history.map((v, i) => {
+    const pct = max === min ? 60 : 20 + ((v - min) / (max - min)) * 75;
+    const cls = v === max ? 'hi' : v === min ? 'lo' : '';
+    return `<div class="chart-bar ${cls}" style="height:${pct}%" title="${v} div"></div>`;
+  }).join('');
+
+  // depth
+  const maxCount = Math.max(...m.depth.map(d => d.count));
+  document.getElementById('dDepth').innerHTML = m.depth.map((d, i) => `
+    <div class="listing-bar-row">
+      <div class="listing-bar-label">${d.label}</div>
+      <div class="listing-bar-track">
+        <div class="listing-bar-fill ${i === 0 ? 'hi' : ''}" style="width:${(d.count/maxCount)*100}%"></div>
+      </div>
+      <div class="listing-bar-count">${d.count}</div>
+    </div>
+  `).join('');
+
+  renderList();
+}
+
+// ── FILTERS ───────────────────────────────────────────
+document.querySelectorAll('.pill[data-filter]').forEach(pill => {
+  pill.addEventListener('click', () => {
+    activeFilter = pill.dataset.filter;
+    document.querySelectorAll('.pill[data-filter]').forEach(p => p.classList.remove('active'));
+    pill.classList.add('active');
+    renderList();
+  });
+});
+
+document.getElementById('search').addEventListener('input', e => {
+  searchQuery = e.target.value;
+  renderList();
+});
+
+// ── DRAG RESIZE ───────────────────────────────────────
+const handle = document.getElementById('dragHandle');
+const detail = document.getElementById('detailPane');
+const body   = document.getElementById('body');
+let dragging = false;
+
+handle.addEventListener('mousedown', e => {
+  dragging = true;
+  handle.classList.add('dragging');
+  e.preventDefault();
+});
+
+document.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  const bodyRect = body.getBoundingClientRect();
+  const newWidth = bodyRect.right - e.clientX;
+  const clamped = Math.max(220, Math.min(480, newWidth));
+  detail.style.width = clamped + 'px';
+});
+
+document.addEventListener('mouseup', () => {
+  if (dragging) {
+    dragging = false;
+    handle.classList.remove('dragging');
+  }
+});
+
+// ── CLOCK ─────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    now.toTimeString().slice(0,8);
+}
+updateClock();
+setInterval(updateClock, 1000);
+
+// ── INIT ──────────────────────────────────────────────
+renderList();
+</script>
+</body>
+</html>

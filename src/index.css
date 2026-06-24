@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+/* ── Design tokens (from design/ingenuity-ui-v1.html mockup) ── */
+@theme {
+  --color-bg: #0b0c0b;
+  --color-bg2: #0e100f;
+  --color-bg3: #121413;
+  --color-bg4: #161918;
+  --color-border: #1a1d1c;
+  --color-border2: #232726;
+  --color-dim: #2a2e2c;
+  --color-mid: #4a524e;
+  --color-sub: #6a7570;
+  --color-text: #b4c0ba;
+  --color-bright: #dce8e0;
+  --color-accent: #3dba8c;
+  --color-a2: #2a9970;
+  --color-a3: #1a6b4e;
+  --color-adim: #0d2e20;
+  --color-up: #3dba8c;
+  --color-down: #ba3d5a;
+
+  --font-mono: "IBM Plex Mono", monospace;
+  --font-sans: "IBM Plex Sans", sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  overflow: hidden;
+}
