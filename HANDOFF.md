@@ -81,9 +81,10 @@ App name: **ingenuity-bot** (do not use "arbitrage" anywhere in the name, UI, or
   auto-rejected** — the email must be human-written by Jordan. A draft was prepared (see below).
 - Flow: Authorization Code + **PKCE** (SHA256). Public client. Access token 10h / refresh 7d.
 - Minimum scope for any login: `account:profile` (display name only). Tablet valuator needs ZERO.
-- **Action item for Jordan:** send the OAuth registration email (draft is in the prior session;
-  regenerate if needed). Until a client_id arrives, ship a "Login with Path of Exile" button
-  that's present but disabled/"coming soon." Architect auth so going live is a one-config change.
+- **OAuth email status:** Jordan SENT the registration email to oauth@grindinggear.com on
+  2026-06-24 (do NOT prompt him to send it again). Now awaiting GGG's reply — can take weeks.
+  Until a client_id arrives, ship a "Login with Path of Exile" button that's present but
+  disabled/"coming soon." Architect auth so going live is a one-config change.
 
 ## Build plan (phases — check in with user after each)
 1. ✅ Research (done — this document).
