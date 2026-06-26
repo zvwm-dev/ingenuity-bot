@@ -18,6 +18,9 @@ src-tauri/target/
 cache/
 *.cache
 
+# Temp screenshots / scratch
+.tmp-*
+
 # OS / editor
 .DS_Store
 Thumbs.db
