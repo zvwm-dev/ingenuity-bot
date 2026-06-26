@@ -88,12 +88,20 @@ App name: **ingenuity-bot** (do not use "arbitrage" anywhere in the name, UI, or
 
 ## Build plan (phases — check in with user after each)
 1. ✅ Research (done — this document).
-2. Scaffold Tauri 2 + React + TS + Tailwind at the repo root. "Hello world" window launching
-   on Windows. Commit. Add docs/tos-compliance.md and docs/privacy.md.
+2. ✅ Scaffold Tauri 2 + React 19 + TS + Tailwind v4. Native window launches & verified on
+   Windows (screenshot shown to user). docs/tos-compliance.md + docs/privacy.md written.
+   Toolchain installed on this PC: Node 24, Rust 1.96 (stable-msvc), VS2022 C++ Build Tools,
+   WebView2. First `npm run tauri dev` compile ~1m27s; binary is `app.exe` (Cargo pkg name
+   "app"); window title "ingenuity", 1100x720 dark. NOTE: a GUI app started from a detached
+   background shell self-exits — to screenshot it, launch via Start-Job and capture within the
+   same foreground script (see session history).
 3. Rate-limited Rust trade-API client (compliant User-Agent + header-driven limiter + caching).
 4. Tablet ingestion + mod parser (the 8 types, prefix/suffix stat IDs).
 5. Regression + UI: sortable table (Mod | Avg Value in Exalted | Sample Size | Confidence),
    "last updated" timestamp, rate-limit-respecting Refresh button.
+   Design reference: design/ingenuity-ui-v1.html (user's mockup). Caveats logged: trade API is
+   snapshot-only (no 7d history / volume on day one — accrue over time); price unit Exalted not
+   Divine; fold sample-size + confidence back in (derive S/A/B/C tier from confidence).
 
 ## Open question at handoff time
 The user wants to **see/drive this session from their phone** via the Claude Code mobile app
