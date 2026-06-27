@@ -86,6 +86,24 @@ App name: **ingenuity-bot** (do not use "arbitrage" anywhere in the name, UI, or
   Until a client_id arrives, ship a "Login with Path of Exile" button that's present but
   disabled/"coming soon." Architect auth so going live is a one-config change.
 
+## Modeling decisions (from Jordan, the domain expert — 2026-06-26)
+Search BOTH magic AND rare tablets, filtered to **2-4 total modifiers** (drop 1-mod and 5-6-mod
+outliers). Rationale: rare tablets give varied mod COMBINATIONS, which is what lets the
+regression separate individual mod values (pure 2-mod magic data is weakly identifiable).
+His answers driving the model:
+1. **Combos cost a premium** — certain mod pairings sell above the sum of parts. => the additive
+   model is an approximation; report fit quality (R²/CI) and flag that v1 gives average MARGINAL
+   mod value, not specific-combo prices. Consider top pairwise interactions later.
+2. **Value depends on tablet type** — the same shared mod is worth different amounts per type.
+   => model PER TABLET TYPE (8 separate regressions); features are (type × mod), not pooled.
+3. **Roll size matters a lot** — higher magnitudes command more. => parse the ACTUAL rolled
+   number from explicitMods[].description; regress price on magnitude (coef = exalted per unit);
+   report value at a typical/median roll, not just presence.
+4. **Currency** — show Exalted by default with a Divine toggle; normalize all prices to Exalted.
+Sampling: don't just take the cheapest N (they're floor-priced at 1ex). One search returns the
+price-sorted id list + `total`; sample ids EVENLY across that list to span the price range, then
+fetch the sample. Get magic+rare via rarity="nonunique" + client-side 2-4 mod-count filter.
+
 ## Build plan (phases — check in with user after each)
 1. ✅ Research (done — this document).
 2. ✅ Scaffold Tauri 2 + React 19 + TS + Tailwind v4. Native window launches & verified on
@@ -109,7 +127,23 @@ App name: **ingenuity-bot** (do not use "arbitrage" anywhere in the name, UI, or
    query.filters.type_filters.filters.rarity.option="magic". League default "Runes of Aldur".
    NOTE: actual rolled magnitude must be parsed from explicitMods[].description text (Phase 4).
    Caching not yet added — do it in Phase 4/5 (persist market snapshots; see docs/privacy.md).
-4. Tablet ingestion + mod parser (the 8 types, prefix/suffix stat IDs).
+4. ✅ Tablet ingestion + mod parser. `src-tauri/src/ingest.rs`: parse_listing -> ParsedListing
+   {tablet_type, rarity, mod_count, price_exalted, mods:[ParsedMod{stat_hash, affix
+   (Prefix/Suffix), tier, magnitude, description}]}. clean_markup strips [tag|display];
+   extract_magnitude pulls the rolled number from the text; normalize_to_exalted via rates map.
+   in_scope() = magic|rare & 2-4 mods. Client gained: sample_tablet_listings (rarity
+   "nonunique" + EVEN sampling across price-sorted ids) and exchange_rate (bulk exchange,
+   robust against bait listings). Example `cargo run --example ingest_probe` VERIFIED live: 114
+   in-scope listings parsed across 6 types (clean per-type mod groups w/ roll ranges).
+   TWO FIXES from that run (both unit-tested): (a) currency — bulk exchange is full of bait
+   offers at ~1 ratio that outnumber real ones; robust_rate anchors on the 90th percentile and
+   bands around it (divine≈260-302 ex, not 1). (b) rate limiter now applies a GLOBAL block on
+   any 429 (GGG restricts per-IP across all endpoints), not just the one policy.
+   LESSON: limits are per-IP and persist across process restarts; repeated cold test runs in a
+   short window tripped a 600s restriction (limiter correctly backed off). Don't hammer; one
+   long-running limiter in the real app won't accumulate this way. NOTE: Abyss/Temple types +
+   live currency re-confirm were pending the IP cooldown at commit time — re-verify at Phase 5
+   start (which fetches anyway). 8 unit tests green.
 5. Regression + UI: sortable table (Mod | Avg Value in Exalted | Sample Size | Confidence),
    "last updated" timestamp, rate-limit-respecting Refresh button.
    Design reference: design/ingenuity-ui-v1.html (user's mockup). Caveats logged: trade API is

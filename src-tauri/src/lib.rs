@@ -1,3 +1,4 @@
+pub mod ingest;
 pub mod trade;
 
 use trade::models::Listing;

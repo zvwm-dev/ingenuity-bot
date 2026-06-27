@@ -34,12 +34,15 @@ struct PolicyState {
 /// Throttles outbound requests per logical policy key (e.g. "search", "fetch").
 pub struct RateLimiter {
     policies: Mutex<HashMap<String, PolicyState>>,
+    /// GGG restricts by IP across ALL endpoints, so a 429 anywhere blocks everything.
+    global_block: Mutex<Option<Instant>>,
 }
 
 impl RateLimiter {
     pub fn new() -> Self {
         Self {
             policies: Mutex::new(HashMap::new()),
+            global_block: Mutex::new(None),
         }
     }
 
@@ -56,6 +59,21 @@ impl RateLimiter {
     /// Block until it is safe to make a request under `key`, then record the request.
     pub async fn acquire(&self, key: &str) {
         loop {
+            // A global IP restriction (set on any 429) blocks every policy.
+            let global_wait = {
+                let g = self.global_block.lock().await;
+                g.and_then(|until| {
+                    let now = Instant::now();
+                    (now < until).then(|| until.saturating_duration_since(now))
+                })
+            };
+            if let Some(d) = global_wait {
+                if !d.is_zero() {
+                    tokio::time::sleep(d).await;
+                    continue;
+                }
+            }
+
             let wait = {
                 let mut policies = self.policies.lock().await;
                 let state = policies.entry(key.to_string()).or_default();
@@ -96,16 +114,27 @@ impl RateLimiter {
         limit_spec: Option<&str>,
         retry_after: Option<u64>,
     ) {
-        let mut policies = self.policies.lock().await;
-        let state = policies.entry(key.to_string()).or_default();
-        if let Some(spec) = limit_spec {
-            let parsed = parse_buckets(spec);
-            if !parsed.is_empty() {
-                state.buckets = parsed;
+        {
+            let mut policies = self.policies.lock().await;
+            let state = policies.entry(key.to_string()).or_default();
+            if let Some(spec) = limit_spec {
+                let parsed = parse_buckets(spec);
+                if !parsed.is_empty() {
+                    state.buckets = parsed;
+                }
             }
-        }
+            if let Some(secs) = retry_after {
+                state.blocked_until = Some(Instant::now() + Duration::from_secs(secs));
+            }
+        } // release the policies lock before taking the global lock
+
+        // A 429 is an IP-wide restriction: block every policy until it clears.
         if let Some(secs) = retry_after {
-            state.blocked_until = Some(Instant::now() + Duration::from_secs(secs));
+            let until = Instant::now() + Duration::from_secs(secs);
+            let mut g = self.global_block.lock().await;
+            if g.map_or(true, |prev| until > prev) {
+                *g = Some(until);
+            }
         }
     }
 }
@@ -191,5 +220,15 @@ mod tests {
         }
         // 5 allowed in the window; should be effectively instant.
         assert!(start.elapsed() < Duration::from_millis(200));
+    }
+
+    #[tokio::test]
+    async fn retry_after_blocks_all_policies() {
+        let rl = RateLimiter::new();
+        // A 429 on the search policy must also hold back fetch (IP-wide restriction).
+        rl.update_from_headers("search", None, Some(1)).await;
+        let start = Instant::now();
+        rl.acquire("fetch").await;
+        assert!(start.elapsed() >= Duration::from_millis(800));
     }
 }
