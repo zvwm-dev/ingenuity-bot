@@ -144,11 +144,24 @@ fetch the sample. Get magic+rare via rarity="nonunique" + client-side 2-4 mod-co
    long-running limiter in the real app won't accumulate this way. NOTE: Abyss/Temple types +
    live currency re-confirm were pending the IP cooldown at commit time — re-verify at Phase 5
    start (which fetches anyway). 8 unit tests green.
-5. Regression + UI: sortable table (Mod | Avg Value in Exalted | Sample Size | Confidence),
-   "last updated" timestamp, rate-limit-respecting Refresh button.
-   Design reference: design/ingenuity-ui-v1.html (user's mockup). Caveats logged: trade API is
-   snapshot-only (no 7d history / volume on day one — accrue over time); price unit Exalted not
-   Divine; fold sample-size + confidence back in (derive S/A/B/C tier from confidence).
+5. ✅ Regression + UI. `model.rs`: per-type OLS via nalgebra SVD (robust to collinear mods),
+   price ~ Σ βⱼ·magnitude; outputs ModValue{per_unit, typical_roll, value_exalted, ci_low/high,
+   sample_size, confidence} + per-type R² + intercept. Unit-tested: recovers known coefficients
+   (price=2A+5B → ~2,~5, R²>0.99). `valuation.rs`: compute() across 8 types (resilient to
+   mid-run rate limits, skips errored types). lib.rs command `value_tablets(league, refresh)`
+   with on-disk cache (app_cache_dir, 30-min TTL, sample 80/type). Frontend `src/App.tsx` +
+   `types.ts`: sortable table (Mod | Type | Value | n | Confidence), ex/div toggle, type-filter
+   pills, search, detail pane (value + 95% range + R² + per-unit/typical roll), Refresh,
+   updated-timestamp, GGG disclaimer. VERIFIED live + screenshotted with real data (122 mods).
+   `cargo run --example value_probe -- "Runes of Aldur" 60` recomputes + seeds the app cache.
+   LIVE RESULTS (2026-06-27): divine≈301 ex; Breach R²0.87, Ritual 0.83, Abyss 0.84, Overseer
+   0.76, Temple 0.75; Delirium R²0.00 (all listings at the 1ex floor → no price signal; honest,
+   not a bug). HONEST GAP / next iteration: most per-mod estimates are LOW confidence (wide CIs,
+   small n) because liquid tablet pricing is flat at the cheap end and samples are modest. To
+   get trustworthy values: pull MORE listings and bias sampling toward the expensive tail (where
+   the value signal lives) — current sample_evenly under-weights it. Also: history/volume panels
+   from the mockup still need accrued daily snapshots; interaction terms for the combo premium
+   are a future add. 9 unit tests green.
 
 ## Open question at handoff time
 The user wants to **see/drive this session from their phone** via the Claude Code mobile app
