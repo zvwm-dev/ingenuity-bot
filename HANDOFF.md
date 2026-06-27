@@ -95,7 +95,20 @@ App name: **ingenuity-bot** (do not use "arbitrage" anywhere in the name, UI, or
    "app"); window title "ingenuity", 1100x720 dark. NOTE: a GUI app started from a detached
    background shell self-exits — to screenshot it, launch via Start-Job and capture within the
    same foreground script (see session history).
-3. Rate-limited Rust trade-API client (compliant User-Agent + header-driven limiter + caching).
+3. ✅ Rate-limited Rust trade-API client. Module `src-tauri/src/trade/` (client, rate_limit,
+   models, error). Header-driven RateLimiter reads X-Rate-Limit-{rule} + Retry-After. Search
+   -> chunked fetch (10/req), resilient per-listing parse. Tauri command `fetch_tablet_listings`.
+   Live probe `cargo run --example tablet_probe` VERIFIED: anonymous search+fetch works (HTTP
+   200), pulled 10 real magic Breach Tablets with P1/S1 mods + prices. Unit tests pass.
+   KEY DATA SHAPE: fetch listing -> item.typeLine, item.rarity ("Magic"/"Normal"/"Unique"),
+   item.explicitMods[] = {description (has the rolled number in text), hash (stat id), mods[]:
+   {name, tier ("P*"=prefix/"S*"=suffix), magnitudes[]:{min,max}=TIER range not the roll}}.
+   listing.price = {amount, currency}. Tablet base type strings (from /data/items): "Abyss
+   Tablet","Breach Tablet","Delirium Tablet","Expedition Tablet","Irradiated Tablet","Temple
+   Tablet","Overseer Tablet","Ritual Tablet". Filter rarity via
+   query.filters.type_filters.filters.rarity.option="magic". League default "Runes of Aldur".
+   NOTE: actual rolled magnitude must be parsed from explicitMods[].description text (Phase 4).
+   Caching not yet added — do it in Phase 4/5 (persist market snapshots; see docs/privacy.md).
 4. Tablet ingestion + mod parser (the 8 types, prefix/suffix stat IDs).
 5. Regression + UI: sortable table (Mod | Avg Value in Exalted | Sample Size | Confidence),
    "last updated" timestamp, rate-limit-respecting Refresh button.
