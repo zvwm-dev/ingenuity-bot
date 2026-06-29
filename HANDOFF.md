@@ -162,6 +162,23 @@ fetch the sample. Get magic+rare via rarity="nonunique" + client-side 2-4 mod-co
    the value signal lives) — current sample_evenly under-weights it. Also: history/volume panels
    from the mockup still need accrued daily snapshots; interaction terms for the combo premium
    are a future add. 9 unit tests green.
+6. ✅ Sharpen + history/supply (2026-06-29). SAMPLING: `sample_value_weighted` biases to the
+   expensive top quartile (60/40) — the value signal is there, cheap listings sit at the 1ex
+   floor. MODEL: trim prices >p97 (bait); only mods with count>=3 become features (prevents
+   saturation/fake R²=1.00 with collapsed CIs); `well_posed = n >= 1.5*cols` else cap confidence
+   Low + note; flat-market note when price std<0.5. Fixed Ritual's false R²1.00→0.46 with honest
+   wide CIs. HISTORY: `history.rs` appends a slim snapshot (per-mod value + per-type supply) to
+   app_data_dir/history_{league}.jsonl on each FRESH compute; `mod_history` command returns a
+   mod's time-series. SUPPLY: thread search `total` (online-listing count) → TypeValuation
+   .listings_available. UI: type-supply stat, value-history sparkline (graceful <2 pts),
+   'thin: hidden' toggle (n<3), auto-select top mod. value_probe seeds BOTH cache (LOCALAPPDATA
+   \com.ingenuity.tablets\valuation_*.json) AND history (APPDATA\...\history_*.jsonl). 11 tests
+   green. HONEST STATE: confidence still mostly Low — genuine market noise + combo premium +
+   modest samples (~30-40 listings/type). To push to Medium/High broadly: larger samples and/or
+   accrue history over days. NEXT IDEAS: scheduled daily snapshot (so history fills automatically
+   even when app closed — good /schedule use), pairwise interaction terms for combo premium,
+   installer/packaging, OAuth login when GGG replies. NOTE: history file may hold one pre-fix
+   (overfit-model) snapshot from 2026-06-27 — harmless, will age out.
 
 ## Open question at handoff time
 The user wants to **see/drive this session from their phone** via the Claude Code mobile app
