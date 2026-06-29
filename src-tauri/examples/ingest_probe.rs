@@ -60,7 +60,7 @@ async fn main() {
     let mut grand_total = 0usize;
 
     for ttype in TABLET_TYPES {
-        let listings = match client.sample_tablet_listings(ttype, Some("nonunique"), sample).await {
+        let (_total, listings) = match client.sample_tablet_listings(ttype, Some("nonunique"), sample).await {
             Ok(v) => v,
             Err(e) => {
                 println!("=== {ttype} ===  ERROR: {e}\n");

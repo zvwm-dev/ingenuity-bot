@@ -47,6 +47,10 @@ pub struct TypeValuation {
     pub r2: f64,
     /// Intercept: the baseline value of a tablet of this type before mods.
     pub base_value_exalted: f64,
+    /// Total online listings for this type (supply signal); set by the caller.
+    pub listings_available: Option<u64>,
+    /// A caveat about this type's fit, if any (e.g. flat market), shown in the UI.
+    pub note: Option<String>,
     pub mods: Vec<ModValue>,
 }
 
@@ -60,13 +64,25 @@ struct ModAgg {
 /// Fit the valuation for a single tablet type. Returns None if there isn't enough data.
 pub fn value_type(tablet_type: &str, listings: &[ParsedListing]) -> Option<TypeValuation> {
     // Only listings with a known Exalted price can train the model.
-    let data: Vec<&ParsedListing> = listings
+    let mut data: Vec<&ParsedListing> = listings
         .iter()
         .filter(|l| l.price_exalted.is_some())
         .collect();
     if data.len() < 6 {
         return None;
     }
+
+    // Drop extreme high prices (bait / mispriced listings) that would dominate the fit.
+    let prices: Vec<f64> = data.iter().map(|l| l.price_exalted.unwrap()).collect();
+    let cutoff = percentile(&prices, 0.97);
+    data.retain(|l| l.price_exalted.unwrap() <= cutoff);
+    if data.len() < 6 {
+        return None;
+    }
+
+    // Flag a flat market (almost no price variation => mod values aren't identifiable).
+    let kept_prices: Vec<f64> = data.iter().map(|l| l.price_exalted.unwrap()).collect();
+    let note = flat_note(&kept_prices);
 
     // Catalogue the distinct mods (keyed by stat hash, falling back to description).
     let mut aggs: BTreeMap<String, ModAgg> = BTreeMap::new();
@@ -86,11 +102,19 @@ pub fn value_type(tablet_type: &str, listings: &[ParsedListing]) -> Option<TypeV
         }
     }
 
-    let keys: Vec<String> = aggs.keys().cloned().collect();
+    // Only mods that appear in enough listings become regression features. Rare mods (a
+    // unique column per one listing) would saturate the fit and fake a perfect R² with
+    // collapsed confidence intervals. Their effect falls into the residual instead.
+    const MIN_OCCUR: usize = 3;
+    let keys: Vec<String> = aggs
+        .iter()
+        .filter(|(_, a)| a.count >= MIN_OCCUR)
+        .map(|(k, _)| k.clone())
+        .collect();
     let p = keys.len();
     let n = data.len();
     if p == 0 {
-        return None;
+        return None; // nothing appears often enough to estimate
     }
     let col_of: std::collections::HashMap<&String, usize> =
         keys.iter().enumerate().map(|(i, k)| (k, i + 1)).collect();
@@ -124,6 +148,14 @@ pub fn value_type(tablet_type: &str, listings: &[ParsedListing]) -> Option<TypeV
     let dof = (n as f64 - cols as f64).max(1.0);
     let sigma2 = rss / dof;
 
+    // If listings barely outnumber parameters, the fit is overfit and its CIs are
+    // untrustworthy (R² near 1 means nothing). Cap confidence and flag it.
+    let well_posed = (n as f64) >= 1.5 * (cols as f64);
+    let note = note.or_else(|| {
+        (!well_posed)
+            .then(|| "few listings relative to mods — values here are rough; gather more data".to_string())
+    });
+
     // Coefficient covariance ≈ σ²·(XᵀX)⁺ for standard errors.
     let xtx = x.tr_mul(&x);
     let cov = xtx.pseudo_inverse(1e-9).ok()? * sigma2;
@@ -148,7 +180,7 @@ pub fn value_type(tablet_type: &str, listings: &[ParsedListing]) -> Option<TypeV
                 ci_low: value - half_ci,
                 ci_high: value + half_ci,
                 sample_size: agg.count,
-                confidence: classify(value, half_ci, agg.count),
+                confidence: classify(value, half_ci, agg.count, well_posed),
             }
         })
         .collect();
@@ -164,8 +196,33 @@ pub fn value_type(tablet_type: &str, listings: &[ParsedListing]) -> Option<TypeV
         listings_used: n,
         r2,
         base_value_exalted: beta[0],
+        listings_available: None,
+        note,
         mods,
     })
+}
+
+fn percentile(xs: &[f64], p: f64) -> f64 {
+    if xs.is_empty() {
+        return 0.0;
+    }
+    let mut v = xs.to_vec();
+    v.sort_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
+    let idx = (((v.len() - 1) as f64) * p).round() as usize;
+    v[idx.min(v.len() - 1)]
+}
+
+fn flat_note(prices: &[f64]) -> Option<String> {
+    if prices.len() < 2 {
+        return None;
+    }
+    let mean = prices.iter().sum::<f64>() / prices.len() as f64;
+    let var = prices.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / prices.len() as f64;
+    if var.sqrt() < 0.5 || mean < 1e-9 {
+        Some("flat market — nearly all listings sit at the floor price, so mod values here are unreliable".into())
+    } else {
+        None
+    }
 }
 
 fn mod_key(m: &crate::ingest::ParsedMod) -> String {
@@ -176,8 +233,8 @@ fn mod_key(m: &crate::ingest::ParsedMod) -> String {
     }
 }
 
-fn classify(value: f64, half_ci: f64, sample: usize) -> String {
-    if sample < 5 {
+fn classify(value: f64, half_ci: f64, sample: usize, well_posed: bool) -> String {
+    if !well_posed || sample < 5 {
         return "Low".into();
     }
     let rel = if value.abs() > 1e-6 {
@@ -231,6 +288,24 @@ mod tests {
                 })
                 .collect(),
         }
+    }
+
+    #[test]
+    fn flags_overfit_when_listings_barely_exceed_mods() {
+        // 8 listings, 6 mods present in every listing => 7 params vs 8 rows: not well-posed.
+        const LABELS: [&str; 6] = ["A", "B", "C", "D", "E", "F"];
+        let mut data = Vec::new();
+        for i in 0..8 {
+            let mods: Vec<(&str, f64)> =
+                LABELS.iter().enumerate().map(|(j, l)| (*l, (i + j + 1) as f64)).collect();
+            data.push(mk(10.0 + i as f64, &mods));
+        }
+        let v = value_type("Test", &data).expect("valuation");
+        assert!(v.note.is_some(), "expected an overfit/rough note");
+        assert!(
+            v.mods.iter().all(|m| m.confidence == "Low"),
+            "overfit estimates must not be labelled confident"
+        );
     }
 
     #[test]

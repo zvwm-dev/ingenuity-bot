@@ -28,6 +28,9 @@ async fn main() {
                     "=== {} ===  listings {} | fit R²={:.2} | base {:.1} ex",
                     t.tablet_type, t.listings_used, t.r2, t.base_value_exalted
                 );
+                if let Some(note) = &t.note {
+                    println!("   ! {note}");
+                }
                 for m in t.mods.iter().take(6) {
                     let kind = match m.affix {
                         app_lib::ingest::Affix::Prefix => "P",
@@ -63,6 +66,14 @@ async fn main() {
                         println!("cache seeded: {}", path.display());
                     }
                 }
+            }
+            // Append a history snapshot too (app_data_dir = %APPDATA%\<identifier>).
+            if let Ok(appdata) = std::env::var("APPDATA") {
+                let dir = std::path::Path::new(&appdata).join("com.ingenuity.tablets");
+                let _ = std::fs::create_dir_all(&dir);
+                let hp = dir.join(format!("history_{safe}.jsonl"));
+                app_lib::history::append(&hp, &v);
+                println!("history appended: {}", hp.display());
             }
         }
         Err(e) => {

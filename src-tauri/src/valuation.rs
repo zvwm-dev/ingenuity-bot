@@ -50,7 +50,7 @@ pub async fn compute(league: &str, sample_per_type: usize) -> Result<Valuation, 
 
     let mut types = Vec::new();
     for ttype in TABLET_TYPES {
-        let listings = match client
+        let (total, listings) = match client
             .sample_tablet_listings(ttype, Some("nonunique"), sample_per_type)
             .await
         {
@@ -65,7 +65,8 @@ pub async fn compute(league: &str, sample_per_type: usize) -> Result<Valuation, 
             .map(|l| parse_listing(l, ttype, &rates))
             .filter(ParsedListing::in_scope)
             .collect();
-        if let Some(v) = value_type(ttype, &parsed) {
+        if let Some(mut v) = value_type(ttype, &parsed) {
+            v.listings_available = Some(total);
             types.push(v);
         }
     }

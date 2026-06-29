@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import type { Confidence, ModRow, Valuation } from "./types";
+import type { Confidence, HistoryPoint, ModRow, Valuation } from "./types";
 
 const LEAGUE = "Runes of Aldur";
 type Unit = "exalted" | "divine";
@@ -14,7 +14,9 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [sortKey, setSortKey] = useState<SortKey>("value");
+  const [hideThin, setHideThin] = useState(true);
   const [selected, setSelected] = useState<ModRow | null>(null);
+  const [history, setHistory] = useState<HistoryPoint[]>([]);
 
   async function load(refresh: boolean) {
     setLoading(true);
@@ -33,24 +35,57 @@ export default function App() {
     load(false);
   }, []);
 
+  useEffect(() => {
+    if (!selected) {
+      setHistory([]);
+      return;
+    }
+    let cancelled = false;
+    invoke<HistoryPoint[]>("mod_history", {
+      league: LEAGUE,
+      tabletType: selected.tablet_type,
+      statHash: selected.stat_hash,
+    })
+      .then((h) => !cancelled && setHistory(h))
+      .catch(() => !cancelled && setHistory([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [selected]);
+
   const divRate = data?.divine_to_exalted ?? null;
   const canDivine = divRate != null && divRate > 0;
 
   const rows = useMemo<ModRow[]>(() => {
     if (!data) return [];
     const flat: ModRow[] = data.types.flatMap((t) =>
-      t.mods.map((m) => ({ ...m, tablet_type: t.tablet_type, type_r2: t.r2 })),
+      t.mods.map((m) => ({
+        ...m,
+        tablet_type: t.tablet_type,
+        type_r2: t.r2,
+        type_note: t.note,
+        type_supply: t.listings_available,
+      })),
     );
     const q = search.trim().toLowerCase();
     return flat
       .filter((r) => (typeFilter === "all" ? true : r.tablet_type === typeFilter))
+      .filter((r) => (hideThin ? r.sample_size >= 3 : true))
       .filter((r) => (q ? r.description.toLowerCase().includes(q) : true))
       .sort((a, b) =>
         sortKey === "value"
           ? b.value_exalted - a.value_exalted
           : b.sample_size - a.sample_size,
       );
-  }, [data, search, typeFilter, sortKey]);
+  }, [data, search, typeFilter, sortKey, hideThin]);
+
+  // Auto-select the top mod once data arrives, so the detail pane isn't empty on open.
+  useEffect(() => {
+    if (data && !selected && rows.length > 0) {
+      setSelected(rows[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
 
   const fmt = (ex: number) => {
     if (unit === "divine" && canDivine) {
@@ -119,22 +154,27 @@ export default function App() {
             {t.replace(" Tablet", "")}
           </Pill>
         ))}
-        <span className="ml-auto flex-shrink-0 pl-3 font-mono text-[9px] tracking-[0.1em] text-dim">
-          sort:{" "}
+        <div className="ml-auto flex flex-shrink-0 items-center gap-3 pl-3">
           <button
-            className={sortKey === "value" ? "text-accent" : "text-mid"}
-            onClick={() => setSortKey("value")}
+            onClick={() => setHideThin((v) => !v)}
+            title="hide mods with fewer than 3 listings"
+            className={`border px-[8px] py-[3px] font-mono text-[9px] tracking-[0.1em] uppercase ${
+              hideThin ? "border-a3 bg-adim text-accent" : "border-border2 text-mid hover:text-sub"
+            }`}
           >
-            value
-          </button>{" "}
-          ·{" "}
-          <button
-            className={sortKey === "sample" ? "text-accent" : "text-mid"}
-            onClick={() => setSortKey("sample")}
-          >
-            sample
+            {hideThin ? "thin: hidden" : "thin: shown"}
           </button>
-        </span>
+          <span className="font-mono text-[9px] tracking-[0.1em] text-dim">
+            sort:{" "}
+            <button className={sortKey === "value" ? "text-accent" : "text-mid"} onClick={() => setSortKey("value")}>
+              value
+            </button>{" "}
+            ·{" "}
+            <button className={sortKey === "sample" ? "text-accent" : "text-mid"} onClick={() => setSortKey("sample")}>
+              sample
+            </button>
+          </span>
+        </div>
       </div>
 
       {/* ── Body ── */}
@@ -191,7 +231,7 @@ export default function App() {
         {/* detail */}
         <div className="w-[300px] flex-shrink-0 overflow-y-auto border-l border-border bg-bg3">
           {selected ? (
-            <Detail row={selected} fmt={fmt} />
+            <Detail row={selected} fmt={fmt} history={history} />
           ) : (
             <div className="flex h-full flex-col items-center justify-center gap-[10px] p-8 text-center">
               <div className="font-mono text-[22px] text-dim">[ ]</div>
@@ -259,7 +299,15 @@ function Banner({ children, tone }: { children: React.ReactNode; tone?: "bad" })
   );
 }
 
-function Detail({ row, fmt }: { row: ModRow; fmt: (ex: number) => { num: string; unit: string } }) {
+function Detail({
+  row,
+  fmt,
+  history,
+}: {
+  row: ModRow;
+  fmt: (ex: number) => { num: string; unit: string };
+  history: HistoryPoint[];
+}) {
   const val = fmt(row.value_exalted);
   const lo = fmt(row.ci_low);
   const hi = fmt(row.ci_high);
@@ -284,17 +332,80 @@ function Detail({ row, fmt }: { row: ModRow; fmt: (ex: number) => { num: string;
             {lo.num}–{hi.num} {hi.unit}
           </Stat>
           <Stat label="Sample size">{row.sample_size} listings</Stat>
+          <Stat label="Type supply">
+            {row.type_supply != null ? `${row.type_supply.toLocaleString()} online` : "—"}
+          </Stat>
+          <Stat label="Fit (this type)">R² {row.type_r2.toFixed(2)}</Stat>
           <Stat label="Per unit roll">{row.per_unit_exalted.toFixed(2)} ex</Stat>
           <Stat label="Typical roll">{row.typical_roll.toFixed(0)}</Stat>
         </div>
-        <div className="border border-border bg-bg2 p-3 font-mono text-[9px] leading-[1.7] text-mid">
-          additive model fit (this type): R² {row.type_r2.toFixed(2)}
-          <br />
-          <span className="text-dim">
-            value = avg marginal price of this mod. combos can sell above the sum of parts; low
-            R² / wide range = trust less.
-          </span>
+
+        <div>
+          <div className="mb-[10px] font-mono text-[9px] tracking-[0.16em] text-mid uppercase">
+            Value history
+          </div>
+          <div className="border border-border bg-bg2 p-3">
+            <Sparkline points={history} fmt={fmt} />
+          </div>
         </div>
+
+        <div className="border border-border bg-bg2 p-3 font-mono text-[9px] leading-[1.7] text-dim">
+          value = avg marginal price of this mod. combos can sell above the sum of parts; low R² /
+          wide range = trust less.
+          {row.type_note && (
+            <>
+              <br />
+              <span className="text-down">⚠ {row.type_note}</span>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Sparkline({
+  points,
+  fmt,
+}: {
+  points: HistoryPoint[];
+  fmt: (ex: number) => { num: string; unit: string };
+}) {
+  if (points.length < 2) {
+    return (
+      <div className="font-mono text-[9px] leading-[1.8] text-dim">
+        history builds over time — {points.length} snapshot{points.length === 1 ? "" : "s"} so far.
+        <br />
+        refresh (or schedule a daily snapshot) to grow this.
+      </div>
+    );
+  }
+  const vals = points.map((p) => p.value_exalted);
+  const min = Math.min(...vals);
+  const max = Math.max(...vals);
+  const span = max - min || 1;
+  const w = 240;
+  const h = 44;
+  const pad = 4;
+  const line = points
+    .map((p, i) => {
+      const x = pad + (i * (w - 2 * pad)) / (points.length - 1);
+      const y = pad + (h - 2 * pad) * (1 - (p.value_exalted - min) / span);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+  const first = fmt(points[0].value_exalted);
+  const last = fmt(points[points.length - 1].value_exalted);
+  return (
+    <div>
+      <svg viewBox={`0 0 ${w} ${h}`} className="w-full" style={{ height: h }}>
+        <polyline points={line} fill="none" stroke="var(--color-accent)" strokeWidth="1.5" />
+      </svg>
+      <div className="mt-1 flex justify-between font-mono text-[8px] text-dim">
+        <span>{first.num} {first.unit}</span>
+        <span>
+          {points.length} pts · now {last.num} {last.unit}
+        </span>
       </div>
     </div>
   );

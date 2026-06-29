@@ -159,12 +159,14 @@ impl TradeClient {
     /// price-sorted results, so we span the whole price range rather than only the
     /// (floor-priced) cheapest. `rarity = Some("nonunique")` covers magic + rare + normal;
     /// callers then filter by mod count.
+    /// Returns `(total_online, listings)` — the total number of online listings for the
+    /// type (a live supply signal) plus the sampled, fetched listings.
     pub async fn sample_tablet_listings(
         &self,
         base_type: &str,
         rarity: Option<&str>,
         sample_size: usize,
-    ) -> Result<Vec<Listing>> {
+    ) -> Result<(u64, Vec<Listing>)> {
         let mut query = json!({
             "query": { "status": { "option": "online" }, "type": base_type },
             "sort": { "price": "asc" }
@@ -175,11 +177,13 @@ impl TradeClient {
         }
 
         let search = self.search(query).await?;
-        let ids = sample_evenly(&search.result, sample_size);
+        let total = search.total.unwrap_or(search.result.len() as u64);
+        let ids = sample_value_weighted(&search.result, sample_size);
         if ids.is_empty() {
-            return Ok(Vec::new());
+            return Ok((total, Vec::new()));
         }
-        self.fetch(&ids, &search.id).await
+        let listings = self.fetch(&ids, &search.id).await?;
+        Ok((total, listings))
     }
 
     /// Live exchange rate as "amount of `want` per 1 `have`" via the bulk exchange API.
@@ -324,12 +328,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn sample_evenly_spans_the_range() {
+    fn value_weighted_favours_the_expensive_tail() {
         let ids: Vec<String> = (0..100).map(|i| i.to_string()).collect();
-        let s = sample_evenly(&ids, 5);
-        assert_eq!(s, vec!["0", "20", "40", "60", "80"]);
+        let s = sample_value_weighted(&ids, 20);
+        assert!(s.len() >= 15 && s.len() <= 20, "got {}", s.len());
+        // includes the cheap baseline (index 0) and the expensive top
+        assert!(s.contains(&"0".to_string()));
+        assert!(s.iter().any(|v| v.parse::<usize>().unwrap() >= 95));
+        // majority should come from the top quartile (idx >= 75)
+        let in_tail = s.iter().filter(|v| v.parse::<usize>().unwrap() >= 75).count();
+        assert!(in_tail >= s.len() / 2, "tail={in_tail} of {}", s.len());
         // small lists return everything
-        assert_eq!(sample_evenly(&ids[..3], 5).len(), 3);
+        assert_eq!(sample_value_weighted(&ids[..3], 20).len(), 3);
     }
 
     #[test]
@@ -342,16 +352,43 @@ mod tests {
     }
 }
 
-/// Pick `k` ids spread evenly across `ids` (which are price-sorted), to span the range.
-fn sample_evenly(ids: &[String], k: usize) -> Vec<String> {
+/// Pick `count` indices spread evenly across the half-open range [start, end).
+fn even_indices(start: usize, end: usize, count: usize) -> Vec<usize> {
+    if end <= start || count == 0 {
+        return Vec::new();
+    }
+    let span = end - start;
+    if span <= count {
+        return (start..end).collect();
+    }
+    let denom = (count.max(2) - 1) as f64;
+    (0..count)
+        .map(|i| start + ((i as f64) * (span - 1) as f64 / denom).round() as usize)
+        .collect()
+}
+
+/// Sample ids (price-sorted ascending) weighted toward the expensive end, where the
+/// value signal lives — cheap tablets cluster at the ~1ex floor and carry little signal.
+/// 60% of the budget comes from the top price quartile, 40% spreads across the whole
+/// range to anchor the baseline.
+fn sample_value_weighted(ids: &[String], k: usize) -> Vec<String> {
     if ids.is_empty() || k == 0 {
         return Vec::new();
     }
     if ids.len() <= k {
         return ids.to_vec();
     }
-    let step = ids.len() as f64 / k as f64;
-    (0..k)
-        .map(|i| ids[((i as f64) * step) as usize].clone())
-        .collect()
+    let n = ids.len();
+    let n_tail = (k * 3) / 5;
+    let n_head = k - n_tail;
+    let tail_start = (n * 3) / 4;
+
+    let mut picked: std::collections::BTreeSet<usize> = std::collections::BTreeSet::new();
+    for idx in even_indices(0, n, n_head) {
+        picked.insert(idx);
+    }
+    for idx in even_indices(tail_start, n, n_tail) {
+        picked.insert(idx);
+    }
+    picked.into_iter().map(|i| ids[i].clone()).collect()
 }

@@ -21,7 +21,14 @@ export interface TypeValuation {
   listings_used: number;
   r2: number;
   base_value_exalted: number;
+  listings_available: number | null;
+  note: string | null;
   mods: ModValue[];
+}
+
+export interface HistoryPoint {
+  at: string;
+  value_exalted: number;
 }
 
 export interface Valuation {
@@ -35,4 +42,6 @@ export interface Valuation {
 export interface ModRow extends ModValue {
   tablet_type: string;
   type_r2: number;
+  type_note: string | null;
+  type_supply: number | null;
 }
