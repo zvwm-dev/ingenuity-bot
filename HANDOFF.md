@@ -179,6 +179,22 @@ fetch the sample. Get magic+rare via rarity="nonunique" + client-side 2-4 mod-co
    even when app closed — good /schedule use), pairwise interaction terms for combo premium,
    installer/packaging, OAuth login when GGG replies. NOTE: history file may hold one pre-fix
    (overfit-model) snapshot from 2026-06-27 — harmless, will age out.
+7. ✅ Daily-snapshot automation (2026-07-07). `src-tauri/src/bin/snapshot.rs` = headless release
+   binary: computes valuation and writes the SAME cache (%LOCALAPPDATA%\com.ingenuity.tablets\
+   valuation_*.json) + history (%APPDATA%\...\history_*.jsonl) the app uses, then exits. Build:
+   `cargo build --release --bin snapshot`; installed to %LOCALAPPDATA%\com.ingenuity.tablets\
+   snapshot.exe. `scripts/run-snapshot.ps1` wrapper (installed alongside) launches it, logs to
+   snapshot.log, and SKIPS if the last snapshot is <6h old (ToS-gentle for frequent logons).
+   Windows Task 'ingenuity daily snapshot' registered: runs powershell.exe -File the wrapper,
+   triggers Daily@12:00 + AtLogon, RunAs PC (Interactive, Limited). Remove:
+   `Unregister-ScheduledTask 'ingenuity daily snapshot'`. CAVEAT: exe works in every direct test
+   (incl. minimal-PATH, no missing DLLs, desktop has no battery), but on-demand
+   Start-ScheduledTask in THIS remote-control session always failed (0x80070002 / 0xFFFD0000, no
+   log) — an Interactive task needs a live desktop session at launch which this automation
+   session doesn't present; S4U logon needs admin (Access denied). Expect it to fire at a normal
+   logon/noon; verify via snapshot.log. Either way history ALSO accrues on every app refresh
+   (fully verified), so the feature works even if the task never fires. Task + installed exe/
+   wrapper are machine state, NOT in the repo (only snapshot.rs + scripts/run-snapshot.ps1 are).
 
 ## Open question at handoff time
 The user wants to **see/drive this session from their phone** via the Claude Code mobile app
