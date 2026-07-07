@@ -37,6 +37,9 @@ auditable in-repo. **Treat this as binding.**
 3. **Aggressive caching.** Market data is cached locally and only refreshed on explicit user
    action (the Refresh button) or after a sensible TTL — never in a polling loop. This
    minimizes request volume, which is both the ToS-friendly and the rate-limit-friendly choice.
+   The optional daily snapshot task (`snapshot.exe`, run by Windows Task Scheduler) performs
+   **at most one compliant refresh per day** to accrue price history — a single low-volume run,
+   not continuous polling.
 4. **Minimal scope.** The tablet valuator uses anonymous trade search (no auth, no scopes).
    Optional login, when added, requests only `account:profile`. See `docs/privacy.md`.
 
