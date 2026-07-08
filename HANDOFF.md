@@ -195,6 +195,21 @@ fetch the sample. Get magic+rare via rarity="nonunique" + client-side 2-4 mod-co
    logon/noon; verify via snapshot.log. Either way history ALSO accrues on every app refresh
    (fully verified), so the feature works even if the task never fires. Task + installed exe/
    wrapper are machine state, NOT in the repo (only snapshot.rs + scripts/run-snapshot.ps1 are).
+8. ✅ Combo-premium modeling (2026-07-08). `model.rs`: after the additive fit, for each mod PAIR
+   co-occurring in >=4 listings, the mean residual = premium(>0)/discount(<0) beyond the sum of
+   parts → ComboPremium{a/b_hash, a/b_desc, premium_exalted, ci, sample_size, confidence}. Reads
+   combo structure WITHOUT adding interaction features (which would overfit — deliberately
+   avoided). combo_confidence: Low if CI straddles 0 or n<4, else Medium/High by sample. Capped
+   to 24/type, on TypeValuation.combos. UI: detail-pane "Pairs with" section shows the selected
+   mod's partners + signed premium; auto-select leads with a mod that has pairs. Unit test
+   detects a planted +20 premium. IMPORTANT BUILD FIX: adding src/bin/snapshot.rs made `cargo
+   run` ambiguous → set `default-run = "app"` in Cargo.toml (else `tauri dev` fails). 11 tests
+   green. HONEST STATE: combos DO surface live (e.g. Delirium Gold×Encounters −1.2 ex Medium;
+   Breach Rarity×Effectiveness ±~1 ex) but are mostly SMALL + Low confidence — with ~30-42
+   listings, pairs co-occur only ~4-5×. This is the feature that most benefits from accrued
+   daily snapshots; premiums sharpen as data grows. Screenshots: Desktop\ingenuity-sharpened.png,
+   ingenuity-combos.png (SendUserFile tool became unavailable mid-project; save to Desktop +
+   describe instead). NEXT IDEAS: installer/packaging, bigger samples, OAuth when GGG replies.
 
 ## Open question at handoff time
 The user wants to **see/drive this session from their phone** via the Claude Code mobile app
