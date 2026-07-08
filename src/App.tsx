@@ -83,7 +83,11 @@ export default function App() {
   // Auto-select the top mod once data arrives, so the detail pane isn't empty on open.
   useEffect(() => {
     if (data && !selected && rows.length > 0) {
-      setSelected(rows[0]);
+      // Prefer a mod that has pair data, so the detail pane leads with something rich.
+      const withCombo = rows.find((r) =>
+        r.type_combos.some((c) => c.a_hash === r.stat_hash || c.b_hash === r.stat_hash),
+      );
+      setSelected(withCombo ?? rows[0]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
