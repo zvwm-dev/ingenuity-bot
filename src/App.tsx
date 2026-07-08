@@ -65,6 +65,7 @@ export default function App() {
         type_r2: t.r2,
         type_note: t.note,
         type_supply: t.listings_available,
+        type_combos: t.combos,
       })),
     );
     const q = search.trim().toLowerCase();
@@ -311,6 +312,9 @@ function Detail({
   const val = fmt(row.value_exalted);
   const lo = fmt(row.ci_low);
   const hi = fmt(row.ci_high);
+  const myCombos = row.type_combos
+    .filter((c) => c.a_hash === row.stat_hash || c.b_hash === row.stat_hash)
+    .slice(0, 5);
   return (
     <div className="flex flex-col">
       <div className="border-b border-border p-[18px]">
@@ -347,6 +351,36 @@ function Detail({
           <div className="border border-border bg-bg2 p-3">
             <Sparkline points={history} fmt={fmt} />
           </div>
+        </div>
+
+        <div>
+          <div className="mb-[10px] font-mono text-[9px] tracking-[0.16em] text-mid uppercase">
+            Pairs with <span className="text-dim">(premium beyond the sum)</span>
+          </div>
+          {myCombos.length === 0 ? (
+            <div className="border border-border bg-bg2 p-3 font-mono text-[9px] leading-[1.7] text-dim">
+              no co-occurring pairs with enough data yet — this fills in as more listings
+              (and daily snapshots) accrue.
+            </div>
+          ) : (
+            <div className="flex flex-col gap-px bg-border">
+              {myCombos.map((c, i) => {
+                const partner = c.a_hash === row.stat_hash ? c.b_desc : c.a_desc;
+                const p = fmt(Math.abs(c.premium_exalted));
+                const up = c.premium_exalted >= 0;
+                return (
+                  <div key={i} className="flex items-center gap-2 bg-bg2 px-3 py-[7px]">
+                    <span className="flex-1 truncate font-sans text-[11px] text-text">{partner}</span>
+                    <span className={`font-mono text-[11px] ${up ? "text-up" : "text-down"}`}>
+                      {up ? "+" : "−"}
+                      {p.num} {p.unit}
+                    </span>
+                    <ConfBadge c={c.confidence} />
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <div className="border border-border bg-bg2 p-3 font-mono text-[9px] leading-[1.7] text-dim">

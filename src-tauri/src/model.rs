@@ -39,6 +39,22 @@ pub struct ModValue {
     pub confidence: String,
 }
 
+/// A mod pair that sells above (premium > 0) or below (< 0) the additive sum of its parts —
+/// measured as the mean residual of the additive fit over listings where both co-occur.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ComboPremium {
+    pub a_hash: String,
+    pub b_hash: String,
+    pub a_desc: String,
+    pub b_desc: String,
+    /// Extra Exalted (or negative) beyond the sum of the two mods' individual values.
+    pub premium_exalted: f64,
+    pub ci_low: f64,
+    pub ci_high: f64,
+    pub sample_size: usize,
+    pub confidence: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TypeValuation {
     pub tablet_type: String,
@@ -52,6 +68,8 @@ pub struct TypeValuation {
     /// A caveat about this type's fit, if any (e.g. flat market), shown in the UI.
     pub note: Option<String>,
     pub mods: Vec<ModValue>,
+    /// Mod pairs whose combined price departs from the additive sum (the combo premium).
+    pub combos: Vec<ComboPremium>,
 }
 
 struct ModAgg {
@@ -116,8 +134,8 @@ pub fn value_type(tablet_type: &str, listings: &[ParsedListing]) -> Option<TypeV
     if p == 0 {
         return None; // nothing appears often enough to estimate
     }
-    let col_of: std::collections::HashMap<&String, usize> =
-        keys.iter().enumerate().map(|(i, k)| (k, i + 1)).collect();
+    let col_of: std::collections::HashMap<String, usize> =
+        keys.iter().enumerate().map(|(i, k)| (k.clone(), i + 1)).collect();
 
     // Design matrix X (intercept + one column per mod) and target y (price).
     let cols = p + 1;
@@ -191,6 +209,61 @@ pub fn value_type(tablet_type: &str, listings: &[ParsedListing]) -> Option<TypeV
             .unwrap_or(Ordering::Equal)
     });
 
+    // ── Combo premiums ──────────────────────────────────────────────────────────
+    // For each co-occurring mod pair, the mean residual of the additive fit over the
+    // listings holding BOTH is the premium (>0) or discount (<0) beyond the sum of parts.
+    // This reads the structure the additive model can't capture, without adding features
+    // that would overfit.
+    const MIN_PAIR: usize = 4;
+    let present: Vec<std::collections::HashSet<String>> = data
+        .iter()
+        .map(|l| {
+            l.mods
+                .iter()
+                .map(mod_key)
+                .filter(|k| col_of.contains_key(k))
+                .collect()
+        })
+        .collect();
+
+    let mut combos: Vec<ComboPremium> = Vec::new();
+    for a in 0..keys.len() {
+        for b in (a + 1)..keys.len() {
+            let (ka, kb) = (&keys[a], &keys[b]);
+            let resids: Vec<f64> = (0..n)
+                .filter(|&r| present[r].contains(ka) && present[r].contains(kb))
+                .map(|r| resid[r])
+                .collect();
+            if resids.len() < MIN_PAIR {
+                continue;
+            }
+            let m = resids.iter().sum::<f64>() / resids.len() as f64;
+            let var = resids.iter().map(|x| (x - m).powi(2)).sum::<f64>()
+                / (resids.len().max(2) - 1) as f64;
+            let se = (var / resids.len() as f64).sqrt();
+            let half = 1.96 * se;
+            combos.push(ComboPremium {
+                a_hash: ka.clone(),
+                b_hash: kb.clone(),
+                a_desc: aggs[ka].description.clone(),
+                b_desc: aggs[kb].description.clone(),
+                premium_exalted: m,
+                ci_low: m - half,
+                ci_high: m + half,
+                sample_size: resids.len(),
+                confidence: combo_confidence(m, se, resids.len(), well_posed),
+            });
+        }
+    }
+    // Most pronounced departures first; cap to keep the payload/UI bounded.
+    combos.sort_by(|x, y| {
+        y.premium_exalted
+            .abs()
+            .partial_cmp(&x.premium_exalted.abs())
+            .unwrap_or(Ordering::Equal)
+    });
+    combos.truncate(24);
+
     Some(TypeValuation {
         tablet_type: tablet_type.to_string(),
         listings_used: n,
@@ -199,6 +272,7 @@ pub fn value_type(tablet_type: &str, listings: &[ParsedListing]) -> Option<TypeV
         listings_available: None,
         note,
         mods,
+        combos,
     })
 }
 
@@ -251,6 +325,21 @@ fn classify(value: f64, half_ci: f64, sample: usize, well_posed: bool) -> String
     }
 }
 
+fn combo_confidence(premium: f64, se: f64, sample: usize, well_posed: bool) -> String {
+    if !well_posed || sample < 4 {
+        return "Low".into();
+    }
+    // If the 95% interval straddles zero, we can't claim a real premium/discount.
+    if 1.96 * se >= premium.abs() {
+        return "Low".into();
+    }
+    if sample >= 8 {
+        "High".into()
+    } else {
+        "Medium".into()
+    }
+}
+
 fn median(xs: &[f64]) -> Option<f64> {
     if xs.is_empty() {
         return None;
@@ -288,6 +377,33 @@ mod tests {
                 })
                 .collect(),
         }
+    }
+
+    #[test]
+    fn detects_combo_premium() {
+        // A-only, B-only, and A+B listings; the A+B ones carry a fixed +20 premium beyond
+        // the additive 2*A + 5*B, which the residual analysis should surface.
+        let mut data = Vec::new();
+        for i in 1..=6 {
+            data.push(mk(2.0 * i as f64, &[("A", i as f64)]));
+        }
+        for i in 1..=6 {
+            data.push(mk(5.0 * i as f64, &[("B", i as f64)]));
+        }
+        for i in 1..=6 {
+            data.push(mk(2.0 * i as f64 + 5.0 * i as f64 + 20.0, &[("A", i as f64), ("B", i as f64)]));
+        }
+        let v = value_type("Test", &data).expect("valuation");
+        let combo = v
+            .combos
+            .iter()
+            .find(|c| (c.a_hash == "A" && c.b_hash == "B") || (c.a_hash == "B" && c.b_hash == "A"))
+            .expect("expected an A+B combo");
+        assert!(
+            combo.premium_exalted > 2.0,
+            "expected a positive combo premium, got {}",
+            combo.premium_exalted
+        );
     }
 
     #[test]

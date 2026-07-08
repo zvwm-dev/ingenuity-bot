@@ -16,6 +16,18 @@ export interface ModValue {
   confidence: Confidence;
 }
 
+export interface ComboPremium {
+  a_hash: string;
+  b_hash: string;
+  a_desc: string;
+  b_desc: string;
+  premium_exalted: number;
+  ci_low: number;
+  ci_high: number;
+  sample_size: number;
+  confidence: Confidence;
+}
+
 export interface TypeValuation {
   tablet_type: string;
   listings_used: number;
@@ -24,6 +36,7 @@ export interface TypeValuation {
   listings_available: number | null;
   note: string | null;
   mods: ModValue[];
+  combos: ComboPremium[];
 }
 
 export interface HistoryPoint {
@@ -44,4 +57,5 @@ export interface ModRow extends ModValue {
   type_r2: number;
   type_note: string | null;
   type_supply: number | null;
+  type_combos: ComboPremium[];
 }

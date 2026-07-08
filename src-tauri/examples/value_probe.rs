@@ -47,6 +47,17 @@ async fn main() {
                         truncate(&m.description, 52)
                     );
                 }
+                for c in t.combos.iter().take(3) {
+                    let sign = if c.premium_exalted >= 0.0 { "+" } else { "-" };
+                    println!(
+                        "   x {sign}{:>4.1} ex [{:<6} n={}] {} & {}",
+                        c.premium_exalted.abs(),
+                        c.confidence,
+                        c.sample_size,
+                        truncate(&c.a_desc, 26),
+                        truncate(&c.b_desc, 26)
+                    );
+                }
                 println!();
             }
             println!("OK: per-type regression produced mod values with CIs + confidence.");
